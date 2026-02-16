@@ -346,6 +346,12 @@ The task steps are defined in [`config/procedure_config.json`](config/procedure_
 ```json
 {
   "procedure_name": "Table Organization - Object Placement",
+  "description": "Guide user to arrange bottle, tape, and block in designated positions",
+  "table_dimensions": {
+    "width": 800,
+    "height": 600,
+    "units": "pixels"
+  },
   "steps": [
     {
       "object": "bottle",
@@ -369,7 +375,22 @@ The task steps are defined in [`config/procedure_config.json`](config/procedure_
   "markers": {
     "type": "apriltag",
     "family": "tag36h11",
-    "ids": [0, 1, 2, 3]
+    "ids": [0, 1, 2, 3],
+    "positions": ["top_left", "top_right", "bottom_right", "bottom_left"]
+  },
+  "objects": {
+    "bottle": {
+      "color_type": "varied",
+      "expected_size": "medium"
+    },
+    "tape": {
+      "color_type": "varied",
+      "expected_size": "small"
+    },
+    "block": {
+      "color_type": "varied",
+      "expected_size": "small"
+    }
   },
   "settings": {
     "completion_tolerance": 40,
