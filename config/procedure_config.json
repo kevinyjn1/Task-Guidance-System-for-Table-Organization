@@ -1,0 +1,54 @@
+{
+  "procedure_name": "Table Organization - Object Placement",
+  "description": "Guide user to arrange bottle, tape, and block in designated positions",
+  "table_dimensions": {
+    "width": 800,
+    "height": 600,
+    "units": "pixels"
+  },
+  "steps": [
+    {
+      "object": "bottle",
+      "target_position": [150, 100],
+      "target_size": [100, 150],
+      "description": "Move the Bottle to the upper left"
+    },
+    {
+      "object": "tape",
+      "target_position": [350, 200],
+      "target_size": [120, 80],
+      "description": "Move the Tape to the center"
+    },
+    {
+      "object": "block",
+      "target_position": [550, 150],
+      "target_size": [100, 100],
+      "description": "Move the Block to the right"
+    }
+  ],
+  "markers": {
+    "type": "apriltag",
+    "family": "tag36h11",
+    "ids": [0, 1, 2, 3],
+    "positions": ["top_left", "top_right", "bottom_right", "bottom_left"]
+  },
+  "objects": {
+    "bottle": {
+      "color_type": "varied",
+      "expected_size": "medium"
+    },
+    "tape": {
+      "color_type": "varied",
+      "expected_size": "small"
+    },
+    "block": {
+      "color_type": "varied",
+      "expected_size": "small"
+    }
+  },
+  "settings": {
+    "completion_tolerance": 40,
+    "hand_interaction_threshold": 100,
+    "movement_threshold": 10
+  }
+}

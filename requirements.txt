@@ -1,0 +1,15 @@
+# Core dependencies
+opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+
+# RealSense camera (recommended)
+pyrealsense2>=2.50.0
+
+# Hand tracking (optional but recommended)
+mediapipe>=0.10.0
+
+# AprilTag detection
+pupil-apriltags>=1.0.0
+
+# Deep learning-based object detection (YOLO)
+ultralytics>=8.0.0
