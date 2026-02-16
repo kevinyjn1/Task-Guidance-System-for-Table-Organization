@@ -476,3 +476,6 @@ The system handles common failure cases gracefully without crashing:
 ## Demo Video
 
 A demo video is included showing the complete workflow: calibration, object placement, guided organization through all 3 steps, "Great Job!" feedback, and final completion screen.
+
+[![Watch the demo video](https://img.youtube.com/vi/c7_2e2pK1JE/0.jpg)](https://www.youtube.com/watch?v=c7_2e2pK1JE)
+
