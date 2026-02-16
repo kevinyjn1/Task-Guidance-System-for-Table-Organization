@@ -286,7 +286,7 @@ cd table_organization_guidance
 ```
 
 ### 2. Set Up Virtual Environment
-A Python 3.12 virtual environment is required (MediaPipe 0.10.14 requires Python <= 3.12):
+A Python 3.12 virtual environment is required (MediaPipe requires Python <= 3.12):
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -336,6 +336,7 @@ python main.py
 | `q` | Quit the application |
 | `r` | Reset the procedure (start over) |
 | `c` | Recalibrate (re-detect markers) |
+| `d` | Toggle debug mode (show color masks) |
 | `s` | Print full state status to console |
 
 ## Procedure Config
