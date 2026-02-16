@@ -12,31 +12,36 @@ This system uses an Intel RealSense D435i camera to guide users through a 3-step
 
 The system is built with three core modules that communicate through well-defined interfaces:
 
-```
-                    +------------------+
-                    |    Main Loop     |
-                    |    (main.py)     |
-                    +--------+---------+
-                             |
-          +------------------+------------------+
-          |                  |                  |
-+---------v--------+ +------v-------+ +--------v---------+
-|   Perception     | |    State     | |  Visualization   |
-|   Module         | |   Manager    | |   Module         |
-|                  | |              | |                  |
-| - SurfaceTracker | | - Procedure  | | - Renderer       |
-|   (AprilTags)    | |   Progress   | |   (Overlays)     |
-| - HybridDetector | | - Visibility | | - Target Zones   |
-|   (YOLO + Color) | | - Interaction| | - Arrows         |
-| - HandTracker    | | - Completion | | - Status/Debug   |
-|   (MediaPipe)    | |              | |                  |
-+------------------+ +--------------+ +------------------+
+```mermaid
+graph TB
+    Frame[Camera Frame] --> ST[Surface Tracker]
+    Frame --> OD[Object Detector]
+    Frame --> HT[Hand Tracker]
+    
+    ST --> SM[State Manager]
+    OD --> SM
+    HT --> SM
+    
+    SM --> RN[Renderer]
+    ST --> RN
+    OD --> RN
+    HT --> RN
+    
+    RN --> Output[Display Frame]
+    
+    style Frame fill:#fff,stroke:#2196F3,stroke-width:2px,color:#000
+    style Output fill:#fff,stroke:#4CAF50,stroke-width:2px,color:#000
+    style ST fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style OD fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#000
+    style HT fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style SM fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style RN fill:#EDE7F6,stroke:#7B1FA2,stroke-width:2px,color:#000
 ```
 
 ### Module Communication
-- **Perception -> State Manager**: Object positions and hand tracking data flow to the state manager for logic updates
-- **State Manager -> Renderer**: Task progress, step info, and completion status flow to the renderer for visual feedback
-- **Perception -> Renderer**: Surface tracker provides coordinate transformations for perspective-correct rendering
+- **Perception → State Manager**: Object positions and hand tracking data flow to the state manager for logic updates
+- **State Manager → Renderer**: Task progress, step info, and completion status flow to the renderer for visual feedback
+- **Perception → Renderer**: Surface tracker provides coordinate transformations for perspective-correct rendering
 
 ## Features
 
@@ -45,11 +50,106 @@ The system is built with three core modules that communicate through well-define
 - **Object Detection (Hybrid)**: YOLOv8 for common objects (bottle) + HSV color segmentation for custom objects (tape, blocks). Only objects inside the workspace boundary are tracked.
 - **Hand Tracking (Bonus)**: MediaPipe Hands detects user hands and interaction with objects (confidence threshold: 0.3)
 
+```mermaid
+flowchart TB
+    Frame[Camera Frame] --> ST
+    Frame --> OD
+    Frame --> HT
+    
+    subgraph ST[Surface Tracker]
+        ST1[Grayscale] --> ST2[Detect AprilTags]
+        ST2 --> ST3{4 Found?}
+        ST3 -->|Yes| ST4[Compute Homography]
+        ST3 -->|No| ST5[visible = false]
+    end
+    
+    subgraph OD[Object Detector]
+        OD1{Type?}
+        OD1 -->|bottle| OD2[YOLO v8]
+        OD1 -->|tape/block| OD3[HSV Color]
+        OD3 --> OD4[Find Contours]
+    end
+    
+    subgraph HT[Hand Tracker]
+        HT1[RGB Convert] --> HT2[MediaPipe]
+        HT2 --> HT3{Hands?}
+        HT3 -->|Yes| HT4[Get Centers]
+        HT3 -->|No| HT5[detected = false]
+    end
+    
+    ST4 --> Out1[Homography Matrix]
+    ST5 --> Out1
+    OD2 --> Out2[Object Positions]
+    OD4 --> Out2
+    HT4 --> Out3[Hand Positions]
+    HT5 --> Out3
+    
+    Out1 --> SM[State Manager]
+    Out2 --> SM
+    Out3 --> SM
+    
+    style Frame fill:#fff,stroke:#2196F3,stroke-width:2px,color:#000
+    style SM fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style Out1 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style Out2 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style Out3 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style ST fill:#E3F2FD,stroke:#1976D2,color:#000
+    style OD fill:#FFF3E0,stroke:#E65100,color:#000
+    style HT fill:#F3E5F5,stroke:#7B1FA2,color:#000
+```
+
 ### B. State Management Module
 - **Procedure Progress**: Tracks current step (1/3, 2/3, 3/3), step descriptions, and overall progress
 - **Visibility**: Monitors table surface visibility and object positions within workspace boundary (using `cv2.pointPolygonTest`). Automatically updates to "not visible" when objects leave the workspace or are not detected.
 - **Interaction Status**: Detects hand proximity to objects and object movement. Resets automatically when hands are not detected.
 - **Completion Status**: Validates when objects are placed within target zones. Tracks per-step and overall procedure completion.
+
+```mermaid
+flowchart TD
+    Start([Update]) --> TableVis{Table Visible?}
+    
+    TableVis -->|No| Reset[Reset States]
+    Reset --> End([Return])
+    
+    TableVis -->|Yes| State{Current State?}
+    
+    State -->|CALIBRATION| S1[Calibration]
+    S1 --> C1{Table OK?}
+    C1 -->|Yes| T1[Go to INIT]
+    C1 -->|No| End
+    T1 --> End
+    
+    State -->|INITIALIZATION| S2[Initialization]
+    S2 --> C2{All Objects?}
+    C2 -->|Yes| T2[Go to IN_PROGRESS]
+    C2 -->|No| End
+    T2 --> End
+    
+    State -->|IN_PROGRESS| S3[In Progress]
+    S3 --> C3{Object Visible?}
+    C3 -->|No| R2[Reset Interaction]
+    R2 --> End
+    C3 -->|Yes| C4{Hand Near?}
+    C4 -->|Yes| H1[hand_interacting = true]
+    C4 -->|No| H2[hand_interacting = false]
+    H1 --> C5{In Target Zone?}
+    H2 --> C5
+    C5 -->|Yes| Done[Mark Complete]
+    C5 -->|No| End
+    Done --> C6{All Done?}
+    C6 -->|Yes| T3[Go to COMPLETED]
+    C6 -->|No| End
+    T3 --> End
+    
+    State -->|COMPLETED| S4[Completed]
+    S4 --> End
+    
+    style Start fill:#fff,stroke:#4CAF50,stroke-width:2px,color:#000
+    style End fill:#fff,stroke:#9E9E9E,stroke-width:2px,color:#000
+    style State fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000
+    style C5 fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style Done fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+```
 
 ### C. Visualization & Interface
 - **Workspace Boundary**: Yellow polygon drawn from AprilTag marker positions
@@ -60,12 +160,116 @@ The system is built with three core modules that communicate through well-define
 - **Status Overlay**: Top bar with progress text and a progress bar showing completed steps
 - **Debug Info**: Bottom-left panel showing real-time system state (State, Table, Object, Hand, Step)
 
+```mermaid
+flowchart TD
+    Start([Input Frame]) --> L1
+    
+    L1[Layer 1: Table Boundary] --> L2
+    L2[Layer 2: Target Zones] --> L3
+    L3[Layer 3: Object Boxes] --> L4
+    L4[Layer 4: Guidance Arrow] --> L5
+    L5[Layer 5: Hand Skeleton] --> L6
+    L6[Layer 6: Status Bar] --> L7
+    L7[Layer 7: Debug Panel] --> L8
+    L8[Layer 8: Success Message] --> Output
+    
+    Output([Output Frame])
+    
+    style Start fill:#fff,stroke:#2196F3,stroke-width:2px,color:#000
+    style Output fill:#fff,stroke:#4CAF50,stroke-width:2px,color:#000
+    style L1 fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000
+    style L2 fill:#FFE0B2,stroke:#E65100,stroke-width:2px,color:#000
+    style L3 fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style L4 fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style L5 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style L6 fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000
+    style L7 fill:#F5F5F5,stroke:#616161,stroke-width:2px,color:#000
+    style L8 fill:#DCEDC8,stroke:#689F38,stroke-width:2px,color:#000
+```
+
 ### Coordinate Transformation
+
 The system maps between two coordinate spaces using a homography matrix computed from the 4 AprilTag marker positions:
 - **Table Coordinates** (800x600): Stable physical coordinates on the table surface, not affected by camera angle
 - **Camera Coordinates**: Pixel coordinates in the camera frame
 
+```mermaid
+flowchart LR
+    subgraph Physical[Physical World]
+        P1[AprilTags]
+        P2[Objects]
+    end
+    
+    subgraph Camera[Camera Space]
+        C1[Marker Corners]
+        C2[Object Centers]
+    end
+    
+    subgraph Table[Table Space]
+        T1[800x600 Grid]
+        T2[Target Zones]
+    end
+    
+    P1 --> C1
+    P2 --> C2
+    
+    C1 --> H[Homography H]
+    
+    C2 -->|camera_to_table| T1
+    T2 -->|table_to_camera| R1[Render Points]
+    
+    R1 --> Final[Perspective Overlay]
+    T1 --> Logic[Completion Check]
+    
+    style H fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000
+    style Final fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000
+    style Logic fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style Physical fill:#E3F2FD,stroke:#1976D2,color:#000
+    style Camera fill:#FFF3E0,stroke:#E65100,color:#000
+    style Table fill:#F3E5F5,stroke:#7B1FA2,color:#000
+```
+
 This enables perspective-correct rendering of target zones that align with the physical table surface regardless of camera position or angle.
+
+## Main Loop
+
+```mermaid
+flowchart TD
+    Start([Start]) --> Init[Initialize Components]
+    Init --> Config[Load Config]
+    Config --> Cam{RealSense?}
+    
+    Cam -->|Yes| RS[RealSense Camera]
+    Cam -->|No| WC[Webcam]
+    
+    RS --> Loop
+    WC --> Loop
+    
+    Loop{Main Loop} --> Frame[Get Frame]
+    Frame --> P1[Update Surface Tracker]
+    P1 --> P2[Update Object Detector]
+    P2 --> P3[Update Hand Tracker]
+    P3 --> P4[Update State Manager]
+    P4 --> P5[Render Frame]
+    P5 --> Show[Display]
+    Show --> Key{Key Press?}
+    
+    Key -->|q| Exit([Exit])
+    Key -->|r| Reset[Reset]
+    Key -->|c| Calib[Recalibrate]
+    Key -->|d| Debug[Toggle Debug]
+    Key -->|None| Loop
+    
+    Reset --> Loop
+    Calib --> Loop
+    Debug --> Loop
+    
+    style Start fill:#fff,stroke:#4CAF50,stroke-width:2px,color:#000
+    style Exit fill:#fff,stroke:#f44336,stroke-width:2px,color:#000
+    style Loop fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000
+    style P4 fill:#FCE4EC,stroke:#C2185B,stroke-width:2px,color:#000
+    style P5 fill:#EDE7F6,stroke:#7B1FA2,stroke-width:2px,color:#000
+```
 
 ## Hardware Requirements
 
